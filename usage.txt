@@ -1,8 +1,8 @@
 Ozone机构调试台 · 桌面版
 完整操作步骤、命令含义、配置方法及最小化恢复说明见同目录“操作手册.md”。
 
-普通用户启动：直接双击 dist\OzonePanel.exe。
-这是单文件Windows x64图形程序，已包含Python运行时、Tk和CustomTkinter资源。
+普通用户启动：直接双击 dist\v0.4.0\OzonePanel.exe。
+这是单文件Windows x64图形程序，已包含Python运行时和PySide6/Qt Widgets。
 不需要Python、不需要Shell、不需要start.cmd。第一次启动会解压运行资源到临时目录。
 可把exe复制到其他可写目录使用；它内置当前机构的默认config.json。
 
@@ -44,15 +44,16 @@ exe同目录的config.json可覆盖内置默认配置，.local.json优先级更�
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe build.py
-产物为dist\OzonePanel.exe。build.py使用PyInstaller并显式收集主题、字体等资源。
+产物为dist\v0.4.0\OzonePanel.exe。build.py使用PyInstaller并收集所需Qt动态库和平台插件。
 源码启动：.venv\Scripts\python.exe app.py
 Git管理源码和构建说明，忽略.venv、build、dist及个人配置。
 
 UI来源与许可证：
-采用CustomTkinter官方项目，按所安装包附带的MIT许可证分发，许可证文本保存在THIRD_PARTY_LICENSES.txt。
-https://github.com/TomSchimansky/CustomTkinter
-同时评估了PyQt-Fluent-Widgets；本项目没有引入Qt或该库。
-https://github.com/zhiyiYo/PyQt-Fluent-Widgets
+新版使用PySide6/Qt Widgets双缓冲绘制，修复旧Tk/CustomTkinter版本恢复时黑块逐次补画。
+保持taste-skill指导下的浅色扁平布局，Socket后端和固件控制接口不变。
+Qt/PySide6使用LGPL开源许可，完整声明见THIRD_PARTY_LICENSES.txt，依赖版本见requirements.txt。
+https://doc.qt.io/qtforpython-6/
+最小化恢复只影响窗口显示，不自动重连、复位、使能或发送运动命令。
 
 已在当前项目安装Leonxlnx/taste-skill：
 .agents/skills/design-taste-frontend

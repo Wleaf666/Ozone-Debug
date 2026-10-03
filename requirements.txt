@@ -1,2 +1,2 @@
-customtkinter==6.0.0
+PySide6-Essentials==6.11.2
 pyinstaller==6.22.3
