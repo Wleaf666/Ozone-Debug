@@ -1,4 +1,4 @@
-Ozone机构调试台 — 桌面版
+Ozone机构调试台 · 桌面版
 
 普通用户启动：直接双击 dist\OzonePanel.exe。
 这是单文件Windows x64图形程序，已包含Python运行时、Tk和CustomTkinter资源。
@@ -6,6 +6,8 @@ Ozone机构调试台 — 桌面版
 可把exe复制到其他可写目录使用；它内置当前机构的默认config.json。
 
 界面：
+按taste-skill的重设计和minimalist-ui指导，采用浅色扁平工作台，减少嵌套容器，用分隔线组织设备。
+位置数字使用等宽字体，输入上方有标签，键盘焦点可见；未读取不伪装为零值。
 左侧：升降、翻转、夹爪按钮和最近位置；变量与配置；变量快照。
 右侧：大字号命令返回状态、完整可滚动说明、带时间戳的操作记录。
 协议命令与回复单独在“协议详情”，不会淹没操作结果。
@@ -13,7 +15,7 @@ Ozone机构调试台 — 桌面版
 
 使用顺序：
 1. 先用Ozone加载与目标固件匹配的ELF，连接目标，保持程序运行。
-2. 点击连接与诊断，默认127.0.0.1:19200。
+2. 点击连接诊断，默认127.0.0.1:19200。
 3. 工具读取版本欢迎信息，探测表达式求值、Cortex-M4目标与RAM读取。
    未知版本不凭猜测放行，按接口能力判断；诊断失败时写入按钮保持禁用。
 4. 确认目标运行中，打开“允许写入”，再逐项操作。
@@ -50,5 +52,13 @@ UI来源与许可证：
 https://github.com/TomSchimansky/CustomTkinter
 同时评估了PyQt-Fluent-Widgets；本项目没有引入Qt或该库。
 https://github.com/zhiyiYo/PyQt-Fluent-Widgets
+
+已在当前项目安装Leonxlnx/taste-skill：
+.agents/skills/design-taste-frontend
+.agents/skills/redesign-existing-projects
+.agents/skills/minimalist-ui
+安装来源和内容哈希保存在skills-lock.json，原MIT许可证保存在.agents/taste-skill-LICENSE。
+https://github.com/Leonxlnx/taste-skill
+这些是开发时设计指导，不是运行时依赖，exe不需要安装技能。
 Socket依据：
 https://kb.segger.com/Connecting_to_Ozone%27s_Automation_Socket_Interface

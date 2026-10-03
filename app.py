@@ -1,7 +1,6 @@
 """Ozone Control Panel: native desktop UI, packaged as OzonePanel.exe."""
 import json
 import math
-import os
 from pathlib import Path
 import queue
 import sys
@@ -15,10 +14,10 @@ from ozone_client import Ozone, OzoneError, validate_config
 
 BUNDLE = Path(__file__).resolve().parent
 BASE = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else BUNDLE
-BG, CARD, EDGE = "#101820", "#1a2632", "#304252"
-TEXT, MUTED, ACCENT = "#ecf2f7", "#a8bbcb", "#24b7a0"
-GOOD, BAD, WARN = "#52d6a7", "#ff8c94", "#efc371"
-FONT = "Microsoft YaHei UI"
+BG, CARD, EDGE = "#F5F5F4", "#FFFFFF", "#E5E5E3"
+TEXT, MUTED, ACCENT = "#202322", "#686D6B", "#345F50"
+GOOD, BAD, WARN = "#346538", "#9F2F2D", "#856323"
+FONT, MONO = "Microsoft YaHei UI", "Consolas"
 
 
 def load_config():
@@ -34,8 +33,8 @@ class Panel:
     def __init__(self, root):
         self.root = root
         root.title("Ozone Control Panel · 机构调试台")
-        root.geometry("1280x850")
-        root.minsize(1080, 760)
+        root.geometry("1240x860")
+        root.minsize(1080, 790)
         root.configure(fg_color=BG)
         self.requests = queue.Queue(maxsize=1)
         self.events = queue.Queue()
@@ -57,152 +56,223 @@ class Panel:
 
     def label(self, parent, text, size=14, color=TEXT, bold=False, **kwargs):
         return ctk.CTkLabel(parent, text=text, text_color=color,
-                           font=(FONT, size, "bold" if bold else "normal"), **kwargs)
+                           font=kwargs.pop("font", (FONT, size, "bold" if bold else "normal")), **kwargs)
 
     def button(self, parent, text, command, write=False, primary=False, danger=False, **kwargs):
-        color = "#763842" if danger else ACCENT if primary else "#293e50"
-        button = ctk.CTkButton(parent, text=text, command=command, height=40,
-                              fg_color=color, hover_color="#40586c" if not primary else "#199983",
-                              text_color=BG if primary else TEXT, corner_radius=8,
-                              font=(FONT, 14, "bold"), **kwargs)
+        color = "#FDEBEC" if danger else TEXT if primary else "#F5F5F4"
+        foreground = BAD if danger else "#FFFFFF" if primary else TEXT
+        button = ctk.CTkButton(
+            parent, text=text, command=command, height=38,
+            fg_color=color, hover_color="#F5DADB" if danger else "#383E3B" if primary else "#E9EBE8",
+            text_color=foreground, text_color_disabled="#929691", corner_radius=5,
+            border_width=0 if primary or danger else 1, border_color=EDGE,
+            font=(FONT, 13), **kwargs)
+        # Native keyboard focus, without animated motion around machine controls.
+        button._canvas.configure(takefocus=1)
+        button._canvas.bind("<FocusIn>", lambda event: button.configure(border_width=2, border_color=ACCENT))
+        button._canvas.bind("<FocusOut>", lambda event: button.configure(border_width=0 if primary or danger else 1, border_color=EDGE))
+        button._canvas.bind("<Return>", lambda event: button.invoke())
         if write:
             self.write_buttons.append(button)
         return button
 
+    def divider(self, parent):
+        ctk.CTkFrame(parent, height=1, fg_color=EDGE, corner_radius=0).pack(fill="x")
+
     def build(self):
         shell = ctk.CTkFrame(self.root, fg_color="transparent")
-        shell.pack(fill="both", expand=True, padx=22, pady=18)
-        heading = ctk.CTkFrame(shell, fg_color="transparent")
-        heading.pack(fill="x")
-        self.label(heading, "OZONE / CONTROL DESK", 26, bold=True).pack(side="left")
-        self.connection_badge = self.label(heading, "未连接 · 写入关闭", 14, WARN)
-        self.connection_badge.pack(side="right")
-        self.label(shell, "STM32F407  ·  双轴 / 气动夹爪    |    仅操作当前固件RAM，不复位、不暂停、不烧录", 13, MUTED).pack(anchor="w", pady=(2, 14))
-        toolbar = ctk.CTkFrame(shell, fg_color=CARD, corner_radius=10)
-        toolbar.pack(fill="x", pady=(0, 16))
-        self.button(toolbar, "连接与诊断", self.connect, primary=True, width=130).pack(side="left", padx=12, pady=12)
-        self.button(toolbar, "断开", lambda: self.submit("disconnect", None, "断开连接"), width=80).pack(side="left", padx=(0, 8))
-        self.button(toolbar, "刷新状态", lambda: self.submit("snapshot", None, "读取设备状态"), width=110).pack(side="left")
-        self.endpoint = self.label(toolbar, "", 12, MUTED)
-        self.endpoint.pack(side="left", padx=14)
-        ctk.CTkSwitch(toolbar, text="目标运行中，允许写入", variable=self.arm,
-                      command=self.arm_changed, progress_color=ACCENT,
-                      font=(FONT, 13)).pack(side="right", padx=16)
+        shell.pack(fill="both", expand=True, padx=28, pady=(22, 14))
+        masthead = ctk.CTkFrame(shell, fg_color="transparent")
+        masthead.pack(fill="x")
+        self.label(masthead, "Ozone", 23, TEXT, True).pack(side="left")
+        self.label(masthead, "机构调试", 15, MUTED).pack(side="left", padx=16)
+        self.label(masthead, "STM32F407 · 双轴 / 气动夹爪", 12, MUTED).pack(side="right")
+        ctk.CTkFrame(shell, height=1, fg_color=EDGE, corner_radius=0).pack(fill="x", pady=(16, 0))
+        toolbar = ctk.CTkFrame(shell, fg_color="transparent")
+        toolbar.pack(fill="x", pady=16)
+        self.connection_badge = self.label(toolbar, "未连接", 13, MUTED, True)
+        self.connection_badge.pack(side="left", padx=(0, 14))
+        self.endpoint = self.label(toolbar, "", 12, MUTED, font=(MONO, 12))
+        self.endpoint.pack(side="left")
+        self.button(toolbar, "连接诊断", self.connect, primary=True, width=100).pack(side="left", padx=(22, 8))
+        self.button(toolbar, "断开", lambda: self.submit("disconnect", None, "断开连接"), width=70).pack(side="left")
+        self.button(toolbar, "刷新状态", lambda: self.submit("snapshot", None, "读取设备状态"), width=100).pack(side="left", padx=8)
+        ctk.CTkSwitch(toolbar, text="确认目标运行，允许写入", variable=self.arm,
+                      command=self.arm_changed, progress_color=ACCENT, button_color="#FFFFFF",
+                      fg_color="#DADDD8", font=(FONT, 12)).pack(side="right")
+        footer = ctk.CTkFrame(shell, fg_color="transparent")
+        footer.pack(side="bottom", fill="x", pady=(12, 0))
+        self.label(footer, "位置为手动刷新快照 · 命令接受不代表到位", 11, MUTED).pack(side="left")
+        self.label(footer, "停止保持不是硬件急停 · 断开不会停止机构", 11, MUTED).pack(side="right")
         body = ctk.CTkFrame(shell, fg_color="transparent")
         body.pack(fill="both", expand=True)
-        body.grid_columnconfigure(0, weight=3)
-        body.grid_columnconfigure(1, weight=2)
+        body.grid_columnconfigure(0, weight=3, uniform="workspace")
+        body.grid_columnconfigure(1, weight=2, uniform="workspace")
         body.grid_rowconfigure(0, weight=1)
-        self.tabs = ctk.CTkTabview(body, fg_color=CARD, corner_radius=10,
-                                   segmented_button_selected_color="#236d72",
-                                   segmented_button_selected_hover_color="#2c8588")
-        self.tabs.grid(row=0, column=0, sticky="nsew", padx=(0, 14))
+        self.tabs = ctk.CTkTabview(
+            body, fg_color=CARD, corner_radius=8, border_width=1, border_color=EDGE,
+            segmented_button_fg_color=BG, segmented_button_selected_color=TEXT,
+            segmented_button_selected_hover_color="#383E3B",
+            segmented_button_unselected_color=BG, segmented_button_unselected_hover_color="#E9EBE8",
+            text_color=TEXT, anchor="nw")
+        self.tabs.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
         self.tabs.add("机构控制")
         self.tabs.add("变量与配置")
         self.tabs.add("变量快照")
+        # Selected tab must have white text on the charcoal selection.
+        self.tabs._segmented_button.configure(text_color=("#FFFFFF", "#FFFFFF"))
+        for name, button in self.tabs._segmented_button._buttons_dict.items():
+            if name != self.tabs.get():
+                button.configure(text_color=TEXT)
+        self.tabs.configure(command=self.update_tab_colors)
         controls = self.tabs.tab("机构控制")
+        controls.grid_columnconfigure(0, weight=1)
         self.metrics = {}
-        for axis, title, unit in (("lift", "升降", "mm"), ("flip", "翻转", "deg")):
-            frame = ctk.CTkFrame(controls, fg_color="#202f3d", corner_radius=10)
-            frame.pack(fill="x", padx=6, pady=(6, 12))
-            title_row = ctk.CTkFrame(frame, fg_color="transparent")
-            title_row.pack(fill="x", padx=15, pady=(10, 2))
-            self.label(title_row, title, 19, bold=True).pack(side="left")
-            position = self.label(title_row, "— " + unit, 25, ACCENT, True)
+        for index, (axis, title, subtitle, unit) in enumerate((
+            ("lift", "升降", "相对位移", "mm"), ("flip", "翻转", "绝对角度", "deg"))):
+            section = ctk.CTkFrame(controls, fg_color="transparent")
+            section.pack(fill="x", padx=18, pady=(8 if index == 0 else 12, 10))
+            heading = ctk.CTkFrame(section, fg_color="transparent")
+            heading.pack(fill="x")
+            titles = ctk.CTkFrame(heading, fg_color="transparent")
+            titles.pack(side="left", anchor="n")
+            self.label(titles, title, 23, bold=True).pack(anchor="w")
+            self.label(titles, subtitle + " · " + unit, 12, MUTED).pack(anchor="w", pady=(2, 0))
+            position = self.label(heading, "未读取", 22, MUTED, font=(MONO, 22))
             position.pack(side="right")
-            state = self.label(frame, "未读取  /  设零 —  /  result —", 12, MUTED)
-            state.pack(anchor="w", padx=15, pady=(0, 10))
+            state = self.label(section, "尚无设备反馈快照", 12, MUTED)
+            state.pack(anchor="w", pady=(2, 6))
             self.metrics[axis] = (position, state, unit)
-            row = ctk.CTkFrame(frame, fg_color="transparent")
-            row.pack(fill="x", padx=15)
-            row.grid_columnconfigure((0, 1, 2, 3), weight=1)
-            for index, (text, code) in enumerate((("设零", 1), ("使能保持", 2), ("失能", 3), ("停止保持", 5))):
-                self.button(row, text,
-                            lambda a=axis, c=code, t=text: self.submit("action", (a, c, None), ("升降" if a == "lift" else "翻转") + " · " + t),
-                            write=True, danger=code == 5, width=85).grid(row=0, column=index, sticky="ew", padx=3)
-            move = ctk.CTkFrame(frame, fg_color="transparent")
-            move.pack(fill="x", padx=15, pady=12)
+            move = ctk.CTkFrame(section, fg_color="transparent")
+            move.pack(fill="x", pady=(0, 8))
             if axis == "lift":
-                ctk.CTkEntry(move, textvariable=self.distance, width=115, height=42, font=(FONT, 16)).pack(side="left")
-                self.label(move, "mm", 13, MUTED).pack(side="left", padx=8)
-                self.button(move, "上升", lambda: self.move_lift(1), write=True, primary=True, width=105).pack(side="left", padx=4)
-                self.button(move, "下降", lambda: self.move_lift(-1), write=True, width=105).pack(side="left", padx=4)
+                field = ctk.CTkFrame(move, fg_color="transparent")
+                field.pack(side="left", padx=(0, 10))
+                self.label(field, "移动距离 / mm", 11, MUTED).pack(anchor="w", pady=(0, 4))
+                ctk.CTkEntry(field, textvariable=self.distance, width=135, height=40,
+                            font=(MONO, 17), fg_color=CARD, border_width=1, border_color="#C9CEC8",
+                            text_color=TEXT, corner_radius=5).pack()
+                self.button(move, "上升", lambda: self.move_lift(1), write=True, primary=True, width=108).pack(side="left", anchor="s", padx=4)
+                self.button(move, "下降", lambda: self.move_lift(-1), write=True, width=108).pack(side="left", anchor="s", padx=4)
             else:
-                self.button(move, "翻转到 180°", lambda: self.submit("action", ("flip", 4, 180), "翻转 · 前往180°"), write=True, primary=True, width=180).pack(side="left", padx=3)
-                self.button(move, "返回 0°", lambda: self.submit("action", ("flip", 4, 0), "翻转 · 返回0°"), write=True, width=150).pack(side="left", padx=6)
-        grippers = ctk.CTkFrame(controls, fg_color="#202f3d", corner_radius=10)
-        grippers.pack(fill="x", padx=6)
-        self.label(grippers, "气动夹爪", 19, bold=True).pack(anchor="w", padx=15, pady=(10, 8))
-        for label, key in (("固定爪", "fixed_gripper"), ("移动爪", "moving_gripper")):
-            row = ctk.CTkFrame(grippers, fg_color="transparent")
-            row.pack(fill="x", padx=15, pady=(0, 10))
-            self.label(row, label, 14).pack(side="left", padx=(0, 15))
-            for closed, text in ((1, "闭合"), (0, "打开")):
-                self.button(row, text, lambda k=key, c=closed, t=label + text: self.submit("gripper", (k, c), t),
-                            write=True, width=115).pack(side="left", padx=4)
-        self.label(controls, "位置为最近读取快照，需点击刷新。\n停止保持不是硬件急停；夹爪状态不是到位反馈。", 12, MUTED, justify="left").pack(anchor="w", padx=12, pady=12)
+                self.button(move, "翻转到 180°", lambda: self.submit("action", ("flip", 4, 180), "翻转 · 前往180°"),
+                            write=True, primary=True, width=170).pack(side="left", padx=(0, 10))
+                self.button(move, "返回 0°", lambda: self.submit("action", ("flip", 4, 0), "翻转 · 返回0°"),
+                            write=True, width=125).pack(side="left")
+            row = ctk.CTkFrame(section, fg_color="transparent")
+            row.pack(fill="x")
+            for text, code in (("设零", 1), ("使能", 2), ("失能", 3), ("停止保持", 5)):
+                self.button(row, text, lambda a=axis, c=code, t=text: self.submit(
+                    "action", (a, c, None), ("升降" if a == "lift" else "翻转") + " · " + t),
+                    write=True, danger=code == 5, width=78 if code != 5 else 108).pack(side="left", padx=(0, 8))
+            self.divider(controls)
+        grip = ctk.CTkFrame(controls, fg_color="transparent")
+        grip.pack(fill="x", padx=18, pady=(10, 6))
+        heading = ctk.CTkFrame(grip, fg_color="transparent")
+        heading.pack(fill="x", pady=(0, 6))
+        self.label(heading, "夹爪", 19, bold=True).pack(side="left")
+        self.label(heading, "仅发送输出命令", 11, MUTED).pack(side="right")
+        groups = ctk.CTkFrame(grip, fg_color="transparent")
+        groups.pack(fill="x")
+        groups.grid_columnconfigure((0, 1), weight=1)
+        for index, (label, key) in enumerate((("固定夹爪", "fixed_gripper"), ("移动夹爪", "moving_gripper"))):
+            group = ctk.CTkFrame(groups, fg_color="transparent")
+            group.grid(row=0, column=index, sticky="ew", padx=(0, 12 if index == 0 else 0))
+            self.label(group, label, 12, MUTED, anchor="w").pack(anchor="w", pady=(0, 4))
+            row = ctk.CTkFrame(group, fg_color="transparent")
+            row.pack(fill="x")
+            row.grid_columnconfigure((0, 1), weight=1)
+            for column, (closed, text) in enumerate(((1, "闭合"), (0, "打开"))):
+                self.button(row, text, lambda k=key, c=closed, t=label + " · " + text: self.submit("gripper", (k, c), t),
+                            write=True, width=75).grid(row=0, column=column, sticky="ew", padx=(0, 6 if column == 0 else 0))
         self.build_config(self.tabs.tab("变量与配置"))
         self.build_snapshot(self.tabs.tab("变量快照"))
-        results = ctk.CTkFrame(body, fg_color=CARD, corner_radius=10)
+
+        results = ctk.CTkFrame(body, fg_color=CARD, corner_radius=8, border_width=1, border_color=EDGE)
         results.grid(row=0, column=1, sticky="nsew")
-        self.label(results, "命令返回 / RESPONSE", 17, bold=True).pack(anchor="w", padx=20, pady=(22, 10))
-        self.result_heading = self.label(results, "等待连接", 27, WARN, True, anchor="w")
-        self.result_heading.pack(fill="x", padx=20)
-        self.result_action = self.label(results, "尚未发送任何目标命令", 14, MUTED, anchor="w")
-        self.result_action.pack(fill="x", padx=20, pady=(4, 10))
-        self.result_body = ctk.CTkTextbox(results, height=160, font=(FONT, 16), wrap="word",
-                                         fg_color="#15222d", text_color=TEXT, border_width=1, border_color=EDGE)
-        self.result_body.pack(fill="x", padx=18, pady=(0, 14))
-        self.set_result("等待连接", "先进行只读连接诊断。通过后确认目标运行中，再允许写入。", WARN)
-        journal = ctk.CTkTabview(results, fg_color="transparent", segmented_button_selected_color="#236d72")
-        journal.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        result_top = ctk.CTkFrame(results, fg_color="transparent")
+        result_top.pack(fill="x", padx=22, pady=(24, 8))
+        self.label(result_top, "执行结果", 16, bold=True).pack(side="left")
+        self.result_time = self.label(result_top, "尚未发送", 11, MUTED, font=(MONO, 11))
+        self.result_time.pack(side="right")
+        self.result_heading = self.label(results, "等待连接", 29, TEXT, True, anchor="w")
+        self.result_heading.pack(fill="x", padx=22, pady=(8, 4))
+        self.result_action = self.label(results, "准备就绪", 12, MUTED, anchor="w")
+        self.result_action.pack(fill="x", padx=22, pady=(0, 12))
+        self.result_body = ctk.CTkTextbox(results, height=175, font=(FONT, 15), wrap="word",
+                                         fg_color=CARD, text_color=TEXT, corner_radius=0,
+                                         border_width=0, scrollbar_button_color="#C9CEC8", spacing3=9)
+        self.result_body.pack(fill="x", padx=18, pady=(0, 18))
+        self.set_result("等待连接", "1. 在Ozone中加载匹配的ELF并连接目标。\n2. 点击连接诊断，确认符号和RAM可读取。\n3. 确认目标运行，授权后开始操作。", MUTED)
+        self.divider(results)
+        journal = ctk.CTkTabview(results, fg_color=CARD, corner_radius=0,
+            segmented_button_fg_color=CARD, segmented_button_selected_color="#E9EDE8",
+            segmented_button_selected_hover_color="#DDE4DB", segmented_button_unselected_color=CARD,
+            segmented_button_unselected_hover_color=BG, text_color=TEXT, anchor="nw")
+        journal.pack(fill="both", expand=True, padx=15, pady=(12, 14))
         journal.add("操作记录")
         journal.add("协议详情")
-        self.history = ctk.CTkTextbox(journal.tab("操作记录"), font=(FONT, 14), wrap="word", fg_color="#15222d")
+        self.history = ctk.CTkTextbox(journal.tab("操作记录"), font=(FONT, 13), wrap="word",
+                                      fg_color=CARD, text_color=TEXT, corner_radius=0, spacing3=8)
         self.history.pack(fill="both", expand=True)
+        self.history.insert("1.0", "暂无操作记录\n\n操作时间、设备命令和返回信息会显示在这里。\n底层Socket命令请切换到协议详情。")
         self.history.configure(state="disabled")
-        self.protocol = ctk.CTkTextbox(journal.tab("协议详情"), font=("Consolas", 12), wrap="word", fg_color="#15222d")
+        self.history_empty = True
+        self.protocol = ctk.CTkTextbox(journal.tab("协议详情"), font=(MONO, 12), wrap="word",
+                                       fg_color=CARD, text_color=TEXT, corner_radius=0)
         self.protocol.pack(fill="both", expand=True)
         self.protocol.configure(state="disabled")
-        self.label(shell, "READ FIRST  /  参数先写，命令最后写；接受不代表到位。断开面板不会自动停止机构。", 12, MUTED).pack(anchor="w", pady=(12, 0))
         self.update_bindings()
         self.button_states()
 
+    def update_tab_colors(self):
+        for name, button in self.tabs._segmented_button._buttons_dict.items():
+            button.configure(text_color="#FFFFFF" if name == self.tabs.get() else TEXT)
+
     def build_config(self, parent):
-        self.label(parent, "变量绑定与连接设置", 19, bold=True).pack(anchor="w", pady=8)
-        self.label(parent, "配置在保存后断开，重新连接生效。通用写入不执行机构顺序检查。", 12, MUTED, wraplength=550, justify="left").pack(anchor="w", pady=(0, 10))
-        row = ctk.CTkFrame(parent, fg_color="transparent")
-        row.pack(fill="x")
-        self.var_box = ctk.CTkComboBox(row, variable=self.variable, state="readonly", width=170)
-        self.var_box.pack(side="left")
-        self.button(row, "读取", lambda: self.submit("read", self.variable.get(), "读取 · " + self.variable.get()), width=65).pack(side="left", padx=6)
-        ctk.CTkEntry(row, textvariable=self.custom_value, width=95).pack(side="left")
-        self.button(row, "写入", self.custom_write, write=True, width=65).pack(side="left", padx=6)
-        self.config_editor = ctk.CTkTextbox(parent, font=("Consolas", 12), wrap="none", fg_color="#15222d")
-        self.config_editor.pack(fill="both", expand=True, pady=12)
+        self.label(parent, "变量与连接配置", 20, bold=True).pack(anchor="w", padx=16, pady=(16, 4))
+        self.label(parent, "保存后重新连接生效。通用写入不检查机构动作顺序。", 12, MUTED).pack(anchor="w", padx=16, pady=(0, 18))
+        fields = ctk.CTkFrame(parent, fg_color="transparent")
+        fields.pack(fill="x", padx=16)
+        self.label(fields, "变量绑定", 11, MUTED).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self.label(fields, "写入值", 11, MUTED).grid(row=0, column=2, sticky="w", pady=(0, 4))
+        self.var_box = ctk.CTkComboBox(fields, variable=self.variable, state="readonly", width=180,
+            fg_color=CARD, border_color=EDGE, button_color=BG, button_hover_color="#E9EBE8",
+            text_color=TEXT, dropdown_fg_color=CARD, dropdown_text_color=TEXT, dropdown_hover_color=BG)
+        self.var_box.grid(row=1, column=0, padx=(0, 6))
+        self.button(fields, "读取", lambda: self.submit("read", self.variable.get(), "读取 · " + self.variable.get()), width=65).grid(row=1, column=1, padx=(0, 14))
+        ctk.CTkEntry(fields, textvariable=self.custom_value, width=90, fg_color=CARD,
+                     border_color=EDGE, text_color=TEXT, font=(MONO, 14)).grid(row=1, column=2, padx=(0, 6))
+        self.button(fields, "写入", self.custom_write, write=True, width=65).grid(row=1, column=3)
+        self.label(parent, "JSON配置", 12, MUTED).pack(anchor="w", padx=16, pady=(20, 6))
+        self.config_editor = ctk.CTkTextbox(parent, font=(MONO, 12), wrap="none",
+            fg_color=BG, text_color=TEXT, border_width=1, border_color=EDGE, corner_radius=5)
+        self.config_editor.pack(fill="both", expand=True, padx=16)
         self.config_editor.insert("1.0", json.dumps(self.config, ensure_ascii=False, indent=2))
-        self.button(parent, "保存配置并断开", self.save_config, width=170).pack(anchor="w", pady=8)
+        self.button(parent, "保存配置并断开", self.save_config, primary=True, width=170).pack(anchor="w", padx=16, pady=16)
 
     def build_snapshot(self, parent):
         style = ttk.Style()
         style.theme_use("clam")
-        style.configure("Treeview", background="#15222d", foreground=TEXT, fieldbackground="#15222d", rowheight=32, font=(FONT, 12), borderwidth=0)
-        style.configure("Treeview.Heading", background="#293e50", foreground=TEXT, font=(FONT, 12, "bold"))
-        style.map("Treeview", background=[("selected", "#236d72")], foreground=[("selected", "white")])
-        self.label(parent, "变量快照", 19, bold=True).pack(anchor="w", pady=8)
+        style.configure("Treeview", background=CARD, foreground=TEXT, fieldbackground=CARD,
+                         rowheight=34, font=(MONO, 12), borderwidth=0)
+        style.configure("Treeview.Heading", background=BG, foreground=MUTED, font=(FONT, 12))
+        style.map("Treeview", background=[("selected", "#E9EDE8")], foreground=[("selected", TEXT)])
+        self.label(parent, "变量快照", 20, bold=True).pack(anchor="w", padx=16, pady=(16, 4))
+        self.label(parent, "点击刷新状态更新全部变量，不是连续采样。", 12, MUTED).pack(anchor="w", padx=16, pady=(0, 16))
         frame = ctk.CTkFrame(parent, fg_color="transparent")
-        frame.pack(fill="both", expand=True)
+        frame.pack(fill="both", expand=True, padx=16)
         self.tree = ttk.Treeview(frame, columns=("expression", "value"), show="headings")
         self.tree.heading("expression", text="表达式")
-        self.tree.heading("value", text="值")
-        self.tree.column("expression", width=270)
+        self.tree.heading("value", text="读取值")
+        self.tree.column("expression", width=275)
         self.tree.column("value", width=130)
         scroll = ttk.Scrollbar(frame, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
         self.tree.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
-        self.snapshot_time = self.label(parent, "尚未读取", 12, MUTED)
-        self.snapshot_time.pack(anchor="w", pady=10)
+        self.snapshot_time = self.label(parent, "尚未读取", 11, MUTED)
+        self.snapshot_time.pack(anchor="w", padx=16, pady=14)
 
     def update_bindings(self):
         keys = list(self.config["variables"])
@@ -213,6 +283,7 @@ class Panel:
     def set_result(self, title, detail, color=TEXT):
         self.result_heading.configure(text=title, text_color=color)
         self.result_action.configure(text=self.action_title)
+        self.result_time.configure(text=datetime.now().strftime("%H:%M:%S"))
         self.result_body.configure(state="normal")
         self.result_body.delete("1.0", "end")
         self.result_body.insert("end", detail)
@@ -227,6 +298,11 @@ class Panel:
         box.configure(state="disabled")
 
     def record(self, title, detail):
+        if self.history_empty:
+            self.history.configure(state="normal")
+            self.history.delete("1.0", "end")
+            self.history.configure(state="disabled")
+            self.history_empty = False
         self.append(self.history, datetime.now().strftime("%H:%M:%S") + "  " + title + "\n" + detail + "\n")
 
     def button_states(self):
@@ -341,11 +417,16 @@ class Panel:
                 self.tree.insert("", "end", values=(binding["expression"], str(value)))
         for axis, (position, state, unit) in self.metrics.items():
             p = self.values.get(axis + "_position")
-            position.configure(text=f"{p:.3f} {unit}" if isinstance(p, (int, float)) else "— " + unit)
+            measured = isinstance(p, (int, float))
+            position.configure(text=f"{p:.3f} {unit}" if measured else "未读取",
+                               text_color=TEXT if measured else MUTED,
+                               font=(MONO, 32 if measured else 22))
             b, z, r = (self.values.get(axis + suffix) for suffix in ("_busy", "_zeroed", "_result"))
             activity = "运动中" if b is True else "非忙" if b is False else "未读取"
-            state.configure(text=f"{activity}  /  设零 {z if z is not None else '—'}  /  result {r if r is not None else '—'}")
-        self.snapshot_time.configure(text="最近读取 " + datetime.now().strftime("%H:%M:%S") + " · 非连续采样")
+            zero = "已设零" if z is True else "未设零" if z is False else "设零状态未读取"
+            state.configure(text=f"{activity} · {zero} · result {r if r is not None else '未读取'}")
+        self.snapshot_time.configure(text=("最近读取 " + datetime.now().strftime("%H:%M:%S") + " · 非连续采样")
+                                     if self.values else "尚未读取")
 
     def pump(self):
         if self.closed:
@@ -372,7 +453,8 @@ class Panel:
                     self.values.clear()
                     self.arm.set(False)
                 self.values.update(values)
-                self.render_values()
+                if values or operation in ("connect", "disconnect"):
+                    self.render_values()
                 self.set_result(title, message, GOOD if operation != "disconnect" else MUTED)
                 self.record(label + " · " + title, message)
             self.button_states()
@@ -386,7 +468,7 @@ class Panel:
 
 
 def main():
-    ctk.set_appearance_mode("dark")
+    ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("dark-blue")
     root = ctk.CTk()
     try:
