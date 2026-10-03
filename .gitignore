@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .local.json
 *.log
+.venv/
+build/
+dist/
+*.spec

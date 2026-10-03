@@ -1,32 +1,54 @@
-Ozone机构调试台
+Ozone机构调试台 — 桌面版
 
-启动：安装含Tkinter的Python 3.10或更新版本，双击start.cmd，或执行python app.py。
-无第三方依赖。工具不会复位、暂停、继续运行、下载固件或直接连接J-Link。
+普通用户启动：直接双击 dist\OzonePanel.exe。
+这是单文件Windows x64图形程序，已包含Python运行时、Tk和CustomTkinter资源。
+不需要Python、不需要Shell、不需要start.cmd。第一次启动会解压运行资源到临时目录。
+可把exe复制到其他可写目录使用；它内置当前机构的默认config.json。
 
-1. 先用Ozone加载与板上固件一致的ELF，连接目标并保持程序运行。
-2. 点击“连接 / 只读诊断”。默认连接127.0.0.1:19200。
-3. 工具检测欢迎信息版本，并探测Util.LogHex、Elf.GetExprValue和内存读取。
-   官方没有给出Socket接口的最早支持版本，因此不按猜测的版本号放行；以能力检测结果为准。
-   旧版V3.24可能不支持。端口拒绝/超时不是STM32串口问题，也不能靠改变固件解决。
-4. 诊断通过后，确认目标运行中，勾选允许写入，再使用控制按钮。
-5. 写位移/角度后最后写命令。命令被消费并result=0只表示接受，不表示到位。
-6. 显式点击刷新状态观察busy、zeroed、result和位置。Stop、Disable、失联也会清busy。
-7. 夹爪先写布尔值，再写gpioOutputflag；输出完成不等于夹紧。
+界面：
+左侧：升降、翻转、夹爪按钮和最近位置；变量与配置；变量快照。
+右侧：大字号命令返回状态、完整可滚动说明、带时间戳的操作记录。
+协议命令与回复单独在“协议详情”，不会淹没操作结果。
+状态颜色区分等待/执行中、成功、失败。命令已接受不等于运动已经完成。
 
-配置页支持变量/成员/数字下标表达式，类型u32、i32、float、bool、u8和写入权限。
-保存到.local.json（Git忽略），重新连接生效。config.json是机构默认配置。
-每次访问重新解析成员地址并检查对象指针，不固定堆对象地址。
-只允许STM32F407 SRAM/CCM地址；不接受任意脚本和外设寄存器写入。
-通用写入只做类型/地址检查，不代替机构按钮的动作顺序检查。
+使用顺序：
+1. 先用Ozone加载与目标固件匹配的ELF，连接目标，保持程序运行。
+2. 点击连接与诊断，默认127.0.0.1:19200。
+3. 工具读取版本欢迎信息，探测表达式求值、Cortex-M4目标与RAM读取。
+   未知版本不凭猜测放行，按接口能力判断；诊断失败时写入按钮保持禁用。
+4. 确认目标运行中，打开“允许写入”，再逐项操作。
+5. 参数先写，命令最后写；工具读取命令消费和固件result，不自动重发失败/超时动作。
+6. 点击刷新状态观察busy、zeroed、result和位置。位置为快照，不是实时示波器。
+   Stop、Disable、失联也会清busy，不能仅凭busy=false认定到位。
+7. 夹爪写bool后触发gpioOutputflag。无气缸传感器，不能据此确认夹紧。
 
-超时后的写入结果可能不确定，工具断开连接并禁止自动重发；核实目标状态后再操作。
-关闭面板、断开连接不等于停止电机。软件Stop是保持当前位置，不是硬件急停。
-面板不自动判断CPU运行状态；“确认目标运行中”是操作者确认。暂停时命令可能滞留到恢复运行。
-实时内存访问支持依赖目标和J-Link/Ozone配置；不可用时工具报错，不用暂停/恢复绕过。
+配置：
+“变量与配置”支持expression、type、writable和连接参数。
+类型：u32、i32、float、bool、u8。表达式支持变量、成员、数字数组下标。
+保存为exe同目录的.local.json；不修改固件，重新连接生效。
+exe同目录的config.json可覆盖内置默认配置，.local.json优先级更高。
+配置页还可读取/写入自定义变量；通用写入不会检查设备动作顺序。
+每次访问重新解析对象及成员地址，拒绝空指针与非STM32F407 RAM区域。
+复位、固件更换后应重新诊断，始终保持ELF与板上程序匹配。
 
-协议依据：
+边界：
+不自动启动/升级Ozone，不直接连接J-Link，不暂停、继续运行、复位或下载固件。
+关闭面板或断开连接不等于停止机构。软件Stop是保持当前位置，不是硬件急停。
+运行中目标内存访问不可用时报告错误，不用暂停/恢复绕过。
+当前真实Ozone的19200端口拒绝连接；界面及exe验证通过，但未验证真实电机动作。
+
+开发者重建：
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe build.py
+产物为dist\OzonePanel.exe。build.py使用PyInstaller并显式收集主题、字体等资源。
+源码启动：.venv\Scripts\python.exe app.py
+Git管理源码和构建说明，忽略.venv、build、dist及个人配置。
+
+UI来源与许可证：
+采用CustomTkinter官方项目，按所安装包附带的MIT许可证分发，许可证文本保存在THIRD_PARTY_LICENSES.txt。
+https://github.com/TomSchimansky/CustomTkinter
+同时评估了PyQt-Fluent-Widgets；本项目没有引入Qt或该库。
+https://github.com/zhiyiYo/PyQt-Fluent-Widgets
+Socket依据：
 https://kb.segger.com/Connecting_to_Ozone%27s_Automation_Socket_Interface
-本机UM08025手册：Util.LogHex第281页；Target.Write/Read第315-316页；Elf.GetExprValue第333页。
-
-验证边界：本程序可在无硬件时验证协议解析和按钮界面；模拟对端不能证明真实Ozone兼容。
-首次实物验证应先断开动力或失能，只读诊断通过后再人工验证一次无动作变量写入。
