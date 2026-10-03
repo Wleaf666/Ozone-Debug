@@ -1,0 +1,24 @@
+{
+  "host": "127.0.0.1",
+  "port": 19200,
+  "timeout": 3.0,
+  "variables": {
+    "lift_root": {"expression": "lift", "type": "u32", "writable": false},
+    "flip_root": {"expression": "flip", "type": "u32", "writable": false},
+    "lift_command": {"expression": "lift->command", "type": "u32", "writable": true},
+    "lift_distance": {"expression": "lift->distance_mm", "type": "float", "writable": true},
+    "lift_busy": {"expression": "lift->busy", "type": "bool", "writable": false},
+    "lift_zeroed": {"expression": "lift->zeroed", "type": "bool", "writable": false},
+    "lift_result": {"expression": "lift->result", "type": "u32", "writable": false},
+    "lift_position": {"expression": "lift->position_mm", "type": "float", "writable": false},
+    "flip_command": {"expression": "flip->command", "type": "u32", "writable": true},
+    "flip_target": {"expression": "flip->target_deg", "type": "float", "writable": true},
+    "flip_busy": {"expression": "flip->busy", "type": "bool", "writable": false},
+    "flip_zeroed": {"expression": "flip->zeroed", "type": "bool", "writable": false},
+    "flip_result": {"expression": "flip->result", "type": "u32", "writable": false},
+    "flip_position": {"expression": "flip->position_deg", "type": "float", "writable": false},
+    "fixed_gripper": {"expression": "fixed_gripper_closed", "type": "bool", "writable": true},
+    "moving_gripper": {"expression": "moving_gripper_closed", "type": "bool", "writable": true},
+    "gripper_trigger": {"expression": "gpioOutputflag", "type": "u32", "writable": true}
+  }
+}
