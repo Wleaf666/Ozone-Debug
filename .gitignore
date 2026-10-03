@@ -6,3 +6,9 @@ __pycache__/
 build/
 dist/
 *.spec
+*.exe
+*.dll
+*.pdb
+*.zip
+*.mp4
+*.egg-info/
