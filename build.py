@@ -5,7 +5,7 @@ import shutil
 import sys
 
 ROOT = Path(__file__).resolve().parent
-OUTPUT = ROOT / "dist" / "v0.4.1"
+OUTPUT = ROOT / "dist" / "v0.4.2"
 
 if __name__ == "__main__":
     if sys.platform != "win32":

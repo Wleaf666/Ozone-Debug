@@ -60,6 +60,8 @@ def decode(raw, kind):
 def parse_reply(expression, response):
     """Console memory reads return byte count plus data, unlike the script API."""
     expected = re.sub(r"\s+", "", expression)
+    if re.search(r"^\s*(?:error\b|failed\b|failure\b|unknown command\b|syntax error\b)", response, re.I | re.M):
+        raise OzoneError("Ozone报告命令错误，写入结果可能不确定: " + response[-1500:])
     pattern = re.compile(
         r"(?P<command>(?:Elf\.GetExprValue|Target\.(?:Read|Write)U(?:8|16|32))\([^\r\n]*?\))"
         r"\s*;\s*//\s*returns\s+(?P<result>-?(?:0x[0-9a-fA-F]+|\d+))"
@@ -81,6 +83,13 @@ def parse_reply(expression, response):
                 raise OzoneError("目标写入失败，结果可能不确定: " + match.group(0))
             return 0
         return result
+    if expression.startswith("Target.Write"):
+        # V3.50 emits only the exact command echo when a write succeeds.
+        # evaluate() has already waited for the unique end marker. Stable values
+        # are additionally read back by write(); consumed flags use wait_clear().
+        for line in response.splitlines():
+            if re.sub(r"\s+", "", line) == expected + ";":
+                return 0
     raise OzoneError("Ozone没有返回匹配的命令结果: " + response[-1500:])
 
 
@@ -199,7 +208,7 @@ class Ozone:
         raw = self.evaluate(f"Target.ReadU{width * 8}(0x{address:X})")
         return decode(raw, binding["type"])
 
-    def write(self, key, value):
+    def write(self, key, value, verify=True):
         if not self.ready or not self.armed:
             raise OzoneError("尚未通过诊断或未允许写入。")
         binding = self.binding(key)
@@ -211,6 +220,11 @@ class Ozone:
         if result != 0:
             self.armed = False
             raise OzoneError(f"写入失败 {key}；可能已部分执行，禁止自动重试。")
+        if verify:
+            actual = self.evaluate(f"Target.ReadU{TYPES[binding['type']] * 8}(0x{address:X})")
+            if actual != raw:
+                self.armed = False
+                raise OzoneError(f"{key}已提交写入，但读回0x{actual:X}与期望0x{raw:X}不符；不自动重发。")
 
     def snapshot(self):
         values = {}
@@ -239,7 +253,7 @@ class Ozone:
             raise OzoneError("设备尚未设零。")
         if value is not None:
             self.write("lift_distance" if axis == "lift" else "flip_target", value)
-        self.write(axis + "_command", command)  # Command is ALWAYS written last.
+        self.write(axis + "_command", command, verify=False)  # Task consumes this flag; verify via wait_clear/result.
         self.wait_clear(axis + "_command")
         result = self.read(axis + "_result")
         if result:
@@ -248,6 +262,6 @@ class Ozone:
 
     def gripper(self, key, closed):
         self.write(key, int(closed))
-        self.write("gripper_trigger", 1)
+        self.write("gripper_trigger", 1, verify=False)
         self.wait_clear("gripper_trigger")
         return "GPIO输出请求已消费；无气缸到位传感器，不能确认夹紧。"

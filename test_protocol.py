@@ -35,6 +35,20 @@ class ConsoleReplies(unittest.TestCase):
             parse_reply('Target.WriteU32(0x20000000, 0x1)',
                 'Target.WriteU32 (0x20000000, 0x1); // returns -1\r\n')
 
+    def test_successful_write_echo_from_real_ozone(self):
+        reply = 'Target.WriteU32 (0x20005034, 0x43340000);\r\nOZP_end\r\n'
+        self.assertEqual(parse_reply('Target.WriteU32(0x20005034, 0x43340000)', reply), 0)
+
+    def test_unrelated_write_echo_cannot_confirm_operation(self):
+        with self.assertRaises(OzoneError):
+            parse_reply('Target.WriteU32(0x20005034, 0x43340000)',
+                        'Target.WriteU32 (0x20005034, 0x0);\r\nOZP_end\r\n')
+
+    def test_write_echo_followed_by_error_is_failure(self):
+        with self.assertRaises(OzoneError):
+            parse_reply('Target.WriteU8(0x20000000, 0x1)',
+                        'Target.WriteU8 (0x20000000, 0x1);\r\nERROR(1): memory write failed\r\n')
+
 
 if __name__ == '__main__':
     unittest.main()
