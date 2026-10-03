@@ -57,6 +57,32 @@ def decode(raw, kind):
         return struct.unpack("<i", struct.pack("<I", raw))[0]
     return bool(raw) if kind == "bool" else raw
 
+def parse_reply(expression, response):
+    """Console memory reads return byte count plus data, unlike the script API."""
+    expected = re.sub(r"\s+", "", expression)
+    pattern = re.compile(
+        r"(?P<command>(?:Elf\.GetExprValue|Target\.(?:Read|Write)U(?:8|16|32))\([^\r\n]*?\))"
+        r"\s*;\s*//\s*returns\s+(?P<result>-?(?:0x[0-9a-fA-F]+|\d+))"
+        r"(?:,\s*data\s+is\s+(?P<data>0x[0-9a-fA-F]+|\d+))?", re.I)
+    # Ozone inserts a space between function name and '(' in echoed commands.
+    normalized = re.sub(r"(?<=\w)\s+(?=\()", "", response)
+    for match in pattern.finditer(normalized):
+        if re.sub(r"\s+", "", match.group("command")) != expected:
+            continue
+        result = int(match.group("result"), 0)
+        if expression.startswith("Target.Read"):
+            width = int(re.search(r"ReadU(\d+)", expression).group(1)) // 8
+            if result != width or match.group("data") is None:
+                raise OzoneError("目标内存读取失败或返回字节数不符: " + match.group(0))
+            return int(match.group("data"), 0)
+        if expression.startswith("Target.Write"):
+            width = int(re.search(r"WriteU(\d+)", expression).group(1)) // 8
+            if result not in (0, width):
+                raise OzoneError("目标写入失败，结果可能不确定: " + match.group(0))
+            return 0
+        return result
+    raise OzoneError("Ozone没有返回匹配的命令结果: " + response[-1500:])
+
 
 class Ozone:
     def __init__(self, config, log=lambda message: None):
@@ -111,7 +137,7 @@ class Ozone:
         if not self.sock:
             raise OzoneError("未连接Ozone。")
         token = "OZP_" + uuid.uuid4().hex
-        text = f'Util.LogHex("{token}=", {expression});\n'
+        text = f'{expression};\nUtil.Log("{token}");\n'
         self.log("> " + text.strip())
         deadline = time.monotonic() + float(self.config["timeout"])
         response = ""
@@ -125,14 +151,12 @@ class Ozone:
                 response += chunk.decode("utf-8", "replace")
                 if len(response) > 262144:
                     raise OzoneError("返回数据过多；协议不同步。")
-                # A command echo contains quotes before '=', and is NOT a result.
-                match = re.search(re.escape(token) + r"=[ \t]*(?:0x)?([0-9a-fA-F]{1,8})(?=[ \t]*\r?\n)", response)
-                if match:
-                    self.log("< " + match.group(0))
-                    return int(match.group(1), 16)
-                if re.search(r"\b(?:error|unknown command|syntax error)\b", response, re.I):
-                    raise OzoneError("Ozone命令错误: " + response[-1500:])
-            raise OzoneError("Ozone回复超时。检查19200接口、版本及Util.LogHex支持；不会重试写入。")
+                # A standalone marker bounds this request; never execute nested calls.
+                # Wait for a complete marker line so split numeric replies cannot truncate.
+                if re.search(r"(?:^|\r?\n)" + re.escape(token) + r"[ \t]*\r?\n", response):
+                    self.log("< " + response.strip())
+                    return parse_reply(expression, response)
+            raise OzoneError("Ozone回复超时，未收到完整命令结束标记；不会重试写入。")
         except (OSError, OzoneError) as exc:
             self.log("< " + response[-1500:])
             self.close()  # Do not consume a stale reply for the next operation.

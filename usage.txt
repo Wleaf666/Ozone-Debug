@@ -1,7 +1,7 @@
 Ozone机构调试台 · 桌面版
 完整操作步骤、命令含义、配置方法及最小化恢复说明见同目录“操作手册.md”。
 
-普通用户启动：直接双击 dist\v0.4.0\OzonePanel.exe。
+普通用户启动：直接双击 dist\v0.4.1\OzonePanel.exe。
 这是单文件Windows x64图形程序，已包含Python运行时和PySide6/Qt Widgets。
 不需要Python、不需要Shell、不需要start.cmd。第一次启动会解压运行资源到临时目录。
 可把exe复制到其他可写目录使用；它内置当前机构的默认config.json。
@@ -19,6 +19,7 @@ Ozone机构调试台 · 桌面版
 2. 点击连接诊断，默认127.0.0.1:19200。
 3. 工具读取版本欢迎信息，探测表达式求值、Cortex-M4目标与RAM读取。
    未知版本不凭猜测放行，按接口能力判断；诊断失败时写入按钮保持禁用。
+   Ozone控制台直接返回“returns”和“data is”，不能用嵌套脚本API调用探测；v0.4.1已修复旧版解析错误。
 4. 确认目标运行中，打开“允许写入”，再逐项操作。
 5. 参数先写，命令最后写；工具读取命令消费和固件result，不自动重发失败/超时动作。
 6. 点击刷新状态观察busy、zeroed、result和位置。位置为快照，不是实时示波器。
@@ -38,13 +39,13 @@ exe同目录的config.json可覆盖内置默认配置，.local.json优先级更�
 不自动启动/升级Ozone，不直接连接J-Link，不暂停、继续运行、复位或下载固件。
 关闭面板或断开连接不等于停止机构。软件Stop是保持当前位置，不是硬件急停。
 运行中目标内存访问不可用时报告错误，不用暂停/恢复绕过。
-当前真实Ozone的19200端口拒绝连接；界面及exe验证通过，但未验证真实电机动作。
+已在实际Ozone V3.50上通过19200连接、表达式解析和当前固件变量只读读取；未触发真实机构动作。
 
 开发者重建：
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe build.py
-产物为dist\v0.4.0\OzonePanel.exe。build.py使用PyInstaller并收集所需Qt动态库和平台插件。
+产物为dist\v0.4.1\OzonePanel.exe。build.py使用PyInstaller并收集所需Qt动态库和平台插件。
 源码启动：.venv\Scripts\python.exe app.py
 Git管理源码和构建说明，忽略.venv、build、dist及个人配置。
 
